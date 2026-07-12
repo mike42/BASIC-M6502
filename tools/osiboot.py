@@ -1,35 +1,45 @@
 #!/usr/bin/env python3
-"""Boot the converted KIM build (build/kim.bin) under py65 and run a BASIC
-session.  KIM monitor I/O is trapped at the vector addresses the image
-calls: OUTCH=$1EA0 (print char in A), GETCH=$1E5A (read char into A).
+"""Boot the converted OSI build (build/osi.bin) under py65 and run a BASIC
+session.  REALIO=2 output is a real monitor call, OUTCH=$FE0B, but *input*
+is inlined hardware: INCHR (m6502.asm ~1745) busy-polls a 6850-style ACIA
+directly at $FC00 (status)/$FC01 (data) rather than calling a monitor
+vector -- there is no single address to trap the way KIM/PET/Apple's
+GETCH/CHRIN/RDKEY calls allow.
 
-Usage: kimboot.py [script-file]   (default: a built-in smoke script)
+Rather than emulate the ACIA registers (and the "REPEAT 4,<NOP>" timing
+padding around them), this traps the program's own INCHR *label* -- the
+whole poll-and-mask routine -- and synthesizes its net effect: pop one
+character off the feed queue into A, RTS.  Every OSI call site (line
+input, and ISCNTC's own inline "JSR INCHR" to eat a pending Control-C)
+goes through this one routine, so trapping the label is equivalent to
+trapping the two registers, without needing their read/write protocol.
+
+Usage: osiboot.py [script-file]   (default: a built-in smoke script)
 """
 import sys
 from py65.devices.mpu6502 import MPU
 
-OUTCH = 0x1EA0
-GETCH = 0x1E5A
 LOAD = 0x2000
+OUTCH = 0xFE0B
+
 
 def find_label(name):
-    for line in open('build/kim.lbl'):
+    for line in open('build/osi.lbl'):
         parts = line.split()
         if len(parts) == 3 and parts[2] == '.' + name:
             return int(parts[1], 16)
     raise SystemExit(f'label {name} not found')
 
+
 def main():
-    image = open('build/kim.bin', 'rb').read()
+    image = open('build/osi.bin', 'rb').read()
     if len(sys.argv) > 1:
-        # newline='' disables universal-newline translation: script files
-        # use a literal CR (\r) as BASIC's line terminator, and text-mode
-        # read() would otherwise silently turn it into \n.
-        text = open(sys.argv[1], newline='').read()
+        text = open(sys.argv[1], newline='').read()  # keep literal \r, see kimboot.py
     else:
-        text = ('24576\r'          # MEMORY SIZE?
+        text = ('40000\r'          # MEMORY SIZE? (must be > RAMLOC=$8000=32768:
+                                    # OSI's ROM build puts variable storage
+                                    # high, unlike KIM/Apple's low RAMLOC)
                 '72\r'             # TERMINAL WIDTH?
-                'Y\r'              # WANT SIN-COS-TAN-ATN?
                 'PRINT 355/113\r'
                 'A$="HELLO"+" WORLD":PRINT LEN(A$);A$\r'
                 'FOR I=1TO5:PRINT I*I;:NEXT:PRINT\r'
@@ -45,13 +55,15 @@ def main():
     mpu = MPU()
     m = mpu.memory
     m[LOAD:LOAD + len(image)] = list(image)
-    zp = open('build/kim.zp', 'rb').read()  # page-zero initial image
-    m[0:len(zp)] = list(zp)
-    mpu.pc = find_label('INIT')
-    # RTS as a backstop at the monitor vectors in case of a real jump
+    INCHR = find_label('INCHR')
     m[OUTCH] = 0x60
-    m[GETCH] = 0x60
-    m[0x1740] = 0x80  # KIM TTY input port: line idle (no ^C pending)
+    m[INCHR] = 0x60
+    mpu.pc = find_label('INIT')
+
+    def do_return():
+        ret = m[0x101 + mpu.sp] | (m[0x102 + mpu.sp] << 8)
+        mpu.sp = (mpu.sp + 2) & 0xFF
+        mpu.pc = (ret + 1) & 0xFFFF
 
     out = []
     trace = []
@@ -60,22 +72,18 @@ def main():
     while steps < LIMIT:
         if mpu.pc == OUTCH:
             out.append(mpu.a & 0x7F)
-            ret = m[0x101 + mpu.sp] | (m[0x102 + mpu.sp] << 8)
-            mpu.sp = (mpu.sp + 2) & 0xFF
-            mpu.pc = (ret + 1) & 0xFFFF
+            do_return()
             continue
-        if mpu.pc == GETCH:
+        if mpu.pc == INCHR:
             if not feed:
-                break  # script exhausted
+                break
             mpu.a = feed.pop(0)
-            ret = m[0x101 + mpu.sp] | (m[0x102 + mpu.sp] << 8)
-            mpu.sp = (mpu.sp + 2) & 0xFF
-            mpu.pc = (ret + 1) & 0xFFFF
+            do_return()
             continue
         if mpu.pc < 0x100 and m[mpu.pc] == 0x00:
             print(f'\n[hit BRK at ${mpu.pc:04X} after {steps} steps]')
             labels = {}
-            for line in open('build/kim.lbl'):
+            for line in open('build/osi.lbl'):
                 p = line.split()
                 if len(p) == 3:
                     labels[int(p[1], 16)] = p[2][1:]
@@ -91,6 +99,7 @@ def main():
 
     sys.stdout.write(''.join(chr(c) for c in out if c not in (0,)))
     print(f'\n[{steps} steps executed]')
+
 
 if __name__ == '__main__':
     main()

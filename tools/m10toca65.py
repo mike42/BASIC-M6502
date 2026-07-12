@@ -96,6 +96,18 @@ LITERAL = {
     186: ('INC\tR+1', []),
     187: ('%Q:>', []),
     6955: ('END\t$Z+START', [';[removed] END $Z+START (entry point is the load address)']),
+    # Upstream gap: the REALIO=2 (OSI) switch block never assigns CZGETL, the
+    # single-raw-character "GET" entry point every other target defines
+    # (see line 3310's "JSR CZGETL", unconditional across all REALIO
+    # values).  This means the master source alone cannot build a working
+    # OSI target -- some further OEM-specific patch, lost to history, must
+    # have supplied it for the real ROM burn (same story as ROMLOC, which
+    # this branch also never touches; see cfg/osi.cfg).  Alias it to this
+    # file's own OSI single-character poll routine (INCHR's REALIO-2 body,
+    # ~line 1745) rather than inventing a hardware address from scratch.
+    88: ('OUTCH==^O177013>', ['\tOUTCH = $FE0B',
+                              '\tCZGETL = INCHR ;[PATCH: OSI never defines CZGETL, see PORTING.md]',
+                              '.endif']),
     # Upstream bug in the 1978 source: STXY TXTTAB was moved inside
     # IFN ROMSW, so RAM builds (ROMSW=0, e.g. the KB9-style KIM tape
     # build) never initialize TXTTAB and INIT crashes.  The 1977 KB9
@@ -564,7 +576,11 @@ class Converter:
         # pseudo-mnemonics ---------------------------------------------
         if op in PSEUDO_IMM:
             expr, pos = self.xexpr(s, pos)
-            out(f'{PSEUDO_IMM[op]}\t#{expr}')
+            # MACRO-10 packs the immediate into one byte at word->byte time,
+            # silently truncating (e.g. <BUF&255>-1 = -1 -> 255 when BUF is
+            # page-aligned, m6502.asm:1863).  ca65 requires #-operands to be
+            # in [0,255] and won't auto-wrap, so force the low byte.
+            out(f'{PSEUDO_IMM[op]}\t#<({expr})')
             return pos
         if op in PSEUDO_INDY:
             expr, pos = self.xexpr(s, pos)
