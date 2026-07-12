@@ -15,7 +15,7 @@ $(BUILD):
 KIMFLAGS = -D REALIO=1 -D ROMSW_OV=0 -D LNGERR=1
 
 $(BUILD)/kim.o: $(BUILD) m6502.s src/macro10.inc
-	$(CA65) -g -I src $(KIMFLAGS) -l $(BUILD)/kim.lst -o $@ $<
+	$(CA65) -g -I src $(KIMFLAGS) -l $(BUILD)/kim.lst -o build/kim.o m6502.s
 
 $(BUILD)/kim.bin: $(BUILD)/kim.o cfg/kim.cfg
 	$(LD65) -C cfg/kim.cfg -o $@ -m $(BUILD)/kim.map \
@@ -38,7 +38,7 @@ run-kim: $(BUILD)/kim.bin
 PETFLAGS = -D REALIO=3
 
 $(BUILD)/pet.o: $(BUILD) m6502.s src/macro10.inc
-	$(CA65) -g -I src $(PETFLAGS) -l $(BUILD)/pet.lst -o $@ $<
+	$(CA65) -g -I src $(PETFLAGS) -l $(BUILD)/pet.lst -o build/pet.o m6502.s
 
 $(BUILD)/pet.bin: $(BUILD)/pet.o cfg/pet.cfg
 	$(LD65) -C cfg/pet.cfg -o $@ -m $(BUILD)/pet.map \
@@ -53,7 +53,7 @@ run-pet: $(BUILD)/pet.bin
 APPLEFLAGS = -D REALIO=4
 
 $(BUILD)/apple.o: $(BUILD) m6502.s src/macro10.inc
-	$(CA65) -g -I src $(APPLEFLAGS) -l $(BUILD)/apple.lst -o $@ $<
+	$(CA65) -g -I src $(APPLEFLAGS) -l $(BUILD)/apple.lst -o build/apple.o m6502.s
 
 $(BUILD)/apple.bin: $(BUILD)/apple.o cfg/apple.cfg
 	$(LD65) -C cfg/apple.cfg -o $@ -m $(BUILD)/apple.map \
@@ -68,7 +68,7 @@ run-apple: $(BUILD)/apple.bin
 OSIFLAGS = -D REALIO=2
 
 $(BUILD)/osi.o: $(BUILD) m6502.s src/macro10.inc
-	$(CA65) -g -I src $(OSIFLAGS) -l $(BUILD)/osi.lst -o $@ $<
+	$(CA65) -g -I src $(OSIFLAGS) -l $(BUILD)/osi.lst -o build/osi.o m6502.s
 
 $(BUILD)/osi.bin: $(BUILD)/osi.o cfg/osi.cfg
 	$(LD65) -C cfg/osi.cfg -o $@ -m $(BUILD)/osi.map \

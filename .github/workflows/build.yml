@@ -31,12 +31,8 @@ jobs:
           .venv/bin/pip install --upgrade pip
           .venv/bin/pip install py65
 
-      # Run the converter (tools/m10toca65.py) - will be removed once conversion is complete.
-      - name: Convert m6502.asm to ca65
-        run: make PY=.venv/bin/python build/m6502_ca65.s
-
       - name: Build all four platforms
-        run: make PY=.venv/bin/python all
+        run: make all
 
       # Each run boots the image under py65 and drives a BASIC smoke test.
       # The boot scripts exit 0 regardless of what BASIC does, so gate on the
