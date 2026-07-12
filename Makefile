@@ -9,16 +9,12 @@ all: kim pet apple osi
 $(BUILD):
 	mkdir -p $(BUILD)
 
-# --- conversion -------------------------------------------------------
-$(BUILD)/m6502_ca65.s: m6502.asm tools/m10toca65.py | $(BUILD)
-	$(PY) tools/m10toca65.py m6502.asm -o $@ --linemap $(BUILD)/linemap.txt
-
 # --- KIM (REALIO=1): compare against KB9, KIM BASIC V1.1 ---------------
 # KB9 is the RAM-loaded tape build with long error messages, so it differs
 # from the checked-in switch defaults: ROMSW=0, LNGERR=1.
 KIMFLAGS = -D REALIO=1 -D ROMSW_OV=0 -D LNGERR=1
 
-$(BUILD)/kim.o: $(BUILD)/m6502_ca65.s src/macro10.inc
+$(BUILD)/kim.o: $(BUILD) m6502.s src/macro10.inc
 	$(CA65) -g -I src $(KIMFLAGS) -l $(BUILD)/kim.lst -o $@ $<
 
 $(BUILD)/kim.bin: $(BUILD)/kim.o cfg/kim.cfg
@@ -41,7 +37,7 @@ run-kim: $(BUILD)/kim.bin
 # --- PET (REALIO=3): as shipped for the CBM KERNAL jump table -----------
 PETFLAGS = -D REALIO=3
 
-$(BUILD)/pet.o: $(BUILD)/m6502_ca65.s src/macro10.inc
+$(BUILD)/pet.o: $(BUILD) m6502.s src/macro10.inc
 	$(CA65) -g -I src $(PETFLAGS) -l $(BUILD)/pet.lst -o $@ $<
 
 $(BUILD)/pet.bin: $(BUILD)/pet.o cfg/pet.cfg
@@ -56,7 +52,7 @@ run-pet: $(BUILD)/pet.bin
 # --- Apple II (REALIO=4): the source's own default, no -D needed --------
 APPLEFLAGS = -D REALIO=4
 
-$(BUILD)/apple.o: $(BUILD)/m6502_ca65.s src/macro10.inc
+$(BUILD)/apple.o: $(BUILD) m6502.s src/macro10.inc
 	$(CA65) -g -I src $(APPLEFLAGS) -l $(BUILD)/apple.lst -o $@ $<
 
 $(BUILD)/apple.bin: $(BUILD)/apple.o cfg/apple.cfg
@@ -71,7 +67,7 @@ run-apple: $(BUILD)/apple.bin
 # --- OSI (REALIO=2) ------------------------------------------------------
 OSIFLAGS = -D REALIO=2
 
-$(BUILD)/osi.o: $(BUILD)/m6502_ca65.s src/macro10.inc
+$(BUILD)/osi.o: $(BUILD) m6502.s src/macro10.inc
 	$(CA65) -g -I src $(OSIFLAGS) -l $(BUILD)/osi.lst -o $@ $<
 
 $(BUILD)/osi.bin: $(BUILD)/osi.o cfg/osi.cfg
