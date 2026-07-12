@@ -1,0 +1,72 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install cc65 (ca65 / ld65)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cc65
+          ca65 --version
+          ld65 --version
+
+      - name: Create venv and install py65
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install py65
+
+      # Run the converter (tools/m10toca65.py) - will be removed once conversion is complete.
+      - name: Convert m6502.asm to ca65
+        run: make PY=.venv/bin/python build/m6502_ca65.s
+
+      - name: Build all four platforms
+        run: make PY=.venv/bin/python all
+
+      # Each run boots the image under py65 and drives a BASIC smoke test.
+      # The boot scripts exit 0 regardless of what BASIC does, so gate on the
+      # interpreter's ready prompt actually appearing on its own line.
+      - name: Run KIM-1 build under py65
+        run: |
+          make PY=.venv/bin/python run-kim | tee run-kim.out
+          grep -Eq '^OK[[:space:]]*$' run-kim.out
+
+      - name: Run PET build under py65
+        run: |
+          make PY=.venv/bin/python run-pet | tee run-pet.out
+          grep -Eq '^READY\.[[:space:]]*$' run-pet.out
+
+      - name: Run Apple II build under py65
+        run: |
+          make PY=.venv/bin/python run-apple | tee run-apple.out
+          grep -Eq '^OK[[:space:]]*$' run-apple.out
+
+      - name: Run OSI build under py65
+        run: |
+          make PY=.venv/bin/python run-osi | tee run-osi.out
+          grep -Eq '^OK[[:space:]]*$' run-osi.out
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m6502-builds
+          path: |
+            build/*.bin
+            build/m6502_ca65.s
+          if-no-files-found: warn
